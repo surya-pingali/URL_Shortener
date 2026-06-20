@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Shortener & Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-8 text-gray-800 font-sans">
+    <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+        
+        <div class="bg-white rounded-xl shadow-md p-6 h-fit">
+            <h2 class="text-xl font-bold mb-2">Create Short Link</h2>
+            <p class="text-sm text-gray-500 mb-4">Enter a target URL to generate a secure short code.</p>
+            <input type="url" id="longUrlInput" placeholder="https://example.com" required
+                class="w-full border-2 border-gray-200 rounded-lg px-4 py-2 mb-4 focus:outline-none focus:border-blue-500">
+            <button onclick="shortenUrl()" 
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
+                Shorten URL
+            </button>
+            <div id="shortenerResult" class="hidden mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p class="text-sm text-green-800 font-semibold mb-1">Success! Your link:</p>
+                <a id="shortLink" href="#" target="_blank" class="text-blue-600 font-mono text-lg break-all hover:underline"></a>
+            </div>
+            <p id="shortenerError" class="hidden mt-4 text-sm text-red-600 font-semibold"></p>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-md p-6">
+            <h2 class="text-xl font-bold mb-2">Link Analytics</h2>
+            <p class="text-sm text-gray-500 mb-4">Enter a short code to view traffic data.</p>
+            <div class="flex gap-2 mb-6">
+                <input type="text" id="shortCodeInput" placeholder="e.g., aB3x9Y" 
+                    class="flex-1 border-2 border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 font-mono">
+                <button onclick="fetchStats()" 
+                    class="bg-gray-800 hover:bg-gray-900 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
+                    Analyze
+                </button>
+            </div>
+            
+            <p id="analyticsError" class="hidden text-sm text-red-600 font-semibold mb-4"></p>
+
+            <div id="statsContainer" class="hidden">
+                <div class="bg-blue-50 rounded-lg p-4 mb-6 text-center border border-blue-100">
+                    <p class="text-sm font-semibold text-blue-800 uppercase tracking-wide">Total Clicks</p>
+                    <p id="totalClicks" class="text-4xl font-bold text-blue-600 mt-1">0</p>
+                </div>
+                <h3 class="text-sm font-bold text-gray-700 uppercase mb-3 border-b pb-2">Recent Traffic (Last 5)</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <tbody id="activityTable">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Note the use of relative paths (/shorten) instead of absolute localhost paths
+        async function shortenUrl() {
+            const urlInput = document.getElementById('longUrlInput').value.trim();
+            const resultBox = document.getElementById('shortenerResult');
+            const linkTag = document.getElementById('shortLink');
+            const errorText = document.getElementById('shortenerError');
+
+            resultBox.classList.add('hidden');
+            errorText.classList.add('hidden');
+
+            if (!urlInput) return;
+
+            try {
+                const response = await fetch('/shorten', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: urlInput })
+                });
+                const data = await response.json();
+
+                if (!response.ok) throw new Error(data.detail || 'Failed to shorten URL');
+
+                // Dynamically construct the full URL based on the current window location
+                const fullUrl = window.location.origin + '/' + data.short_code;
+                linkTag.href = fullUrl;
+                linkTag.innerText = fullUrl;
+                resultBox.classList.remove('hidden');
+
+            } catch (error) {
+                errorText.innerText = error.message;
+                errorText.classList.remove('hidden');
+            }
+        }
+
+        async function fetchStats() {
+            const shortCode = document.getElementById('shortCodeInput').value.trim();
+            const statsContainer = document.getElementById('statsContainer');
+            const tableBody = document.getElementById('activityTable');
+            const errorText = document.getElementById('analyticsError');
+            
+            statsContainer.classList.add('hidden');
+            errorText.classList.add('hidden');
+            tableBody.innerHTML = '';
+
+            if (!shortCode) return;
+
+            try {
+                const response = await fetch(`/stats/${shortCode}`);
+                const data = await response.json();
+
+                if (!response.ok) throw new Error(data.detail || 'Failed to fetch analytics');
+
+                document.getElementById('totalClicks').innerText = data.total_clicks;
+                data.recent_activity.forEach(click => {
+                    tableBody.innerHTML += `
+                        <tr class="border-b last:border-0 hover:bg-gray-50 transition">
+                            <td class="p-2 text-gray-500">${click.time}</td>
+                            <td class="p-2 font-mono text-gray-700 text-right">${click.ip}</td>
+                        </tr>
+                    `;
+                });
+                statsContainer.classList.remove('hidden');
+
+            } catch (error) {
+                errorText.innerText = error.message;
+                errorText.classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
