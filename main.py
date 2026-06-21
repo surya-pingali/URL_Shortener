@@ -22,11 +22,24 @@ redis_client = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global db_pool, redis_client
-    # Startup
-    db_pool = await asyncpg.create_pool(DATABASE_URL)
-    redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+    
+    # Extract variables strictly at runtime
+    db_url = os.getenv("DATABASE_URL")
+    cache_url = os.getenv("REDIS_URL")
+
+    if not db_url:
+        available_keys = list(os.environ.keys())
+        raise RuntimeError(f"CRITICAL: DATABASE_URL is missing. Python can only see: {available_keys}")
+    
+    if not cache_url:
+        raise RuntimeError("CRITICAL: REDIS_URL is missing inside the container.")
+
+    # Startup: Initialize the connection pools
+    db_pool = await asyncpg.create_pool(db_url)
+    redis_client = redis.from_url(cache_url, decode_responses=True)
     yield
-    # Shutdown
+    
+    # Shutdown: Gracefully close connections
     await db_pool.close()
     await redis_client.aclose()
 
